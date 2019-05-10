@@ -75,6 +75,8 @@ class Mixture(object):
     vol_vap = None
     phi_liq = None
     vol_liq = None
+    T = None
+    P = None
     s = None
 
     @property

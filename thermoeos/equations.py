@@ -163,6 +163,8 @@ class Equation(ABC):
         pv, vv, c1 = self._calculate_fugacity_coefficient(T, P, Phase.VAPOR)
         pl, vl, c2 = self._calculate_fugacity_coefficient(T, P, Phase.LIQUID)
         ep = deepcopy(self.mix)
+        ep.T = T
+        ep.P = P
         ep.phi_vap = pv
         ep.phi_liq = pl
         ep.vol_vap = vv
