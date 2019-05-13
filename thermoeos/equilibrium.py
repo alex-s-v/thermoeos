@@ -34,23 +34,23 @@ def initialise(f, init, step_size, max_steps):
     float
         A right value of a bracketing interval.
     """
-    a = 1e-10
-    b = 1e-10
-    av = 0
-    bv = 0
+    ep, calculated = f(init)
+    if not calculated:
+        raise Exception("Initial parameters must be solvable.")
+    s0 = ep.s
     for _ in range(max_steps):
+        init += step_size
         ep, calculated = f(init)
         if calculated:
-            s = ep.s - 1
-            if a > s:
-                a = s
-                av = init
-            elif b < s:
-                b = s
-                bv = init
-        init += step_size
-        if np.sign(a) != np.sign(b):
-            return av, bv
+            if np.abs(ep.s) > np.abs(s0):
+                step_size *= -1
+            else:
+                if np.sign(s0-1) != np.sign(ep.s-1):
+                    return sorted([init-step_size, init])
+                else:
+                    s0 = ep.s
+        else:
+            raise Exception(f"Can't solve equation for {init}")
     return None
 
 
@@ -81,8 +81,8 @@ def find_equilibrium(eq, T, P, predict=Predict.PRESSURE):
 
         def solve(val): return eq.solve(T, val)
     elif predict == Predict.TEMPERATURE:
-        step = 5
-        max_steps = 15
+        step = 2
+        max_steps = 100
         init = T
 
         def solve(val): return eq.solve(val, P)
@@ -155,6 +155,108 @@ def optim_function(k, eqs, predict, exp, ws):
             ws["y"] if np.isnan(res) else res
 
     return mse
+
+
+def calc_rmse(calc, exp):
+    diff = np.subtract(calc, exp)
+    sum_ = np.sum(np.abs(diff)**2)
+    return np.sqrt(np.mean(sum_))
+
+
+def get_prop(mixs, prop):
+    if prop == "t":
+        return [mix.T for mix in mixs]
+    elif prop == "p":
+        return [mix.P for mix in mixs]
+    elif prop == "x":
+        return [mix.x[0][0] for mix in mixs]
+    elif prop == "y":
+        return [mix.y[0][0] for mix in mixs]
+    else:
+        raise Exception(f"Unknown poperty: {prop}")
+
+
+def solve_mult(k, eos, predict):
+    for eq in eos:
+        eq.mix.set_k([[0, k], [k, 0]], inplace=True)
+    eps = [find_equilibrium(eq, eq.mix.T, eq.mix.P, predict) for eq in eos]
+    return eps
+
+
+def optimization_function(k, eos, ems, predict, include, ws):
+    """
+    Calculate error
+    Parameters
+    ----------
+    eos : list of thermoeos.equations.Equation
+        EoS for the optimization.
+    ems : list of thermoeos.mixture.Mixture
+        Mixture whose parameters are obtained experimentally.
+    include : list of str, optional
+        Errors of which parameters include in the computation
+        of BIP. Any combination of t, p, x and y. All included
+        by default.
+    Returns
+    -------
+    rmse : float
+        Root of mean square error for the given set of
+        experimental mixtures and calculated ones
+        using obtained BIP.
+    """
+    eps = solve_mult(k, eos, predict)
+    mixs = [ep[0] for ep in eps if ep[1]]
+    if len(mixs) != len(eps):
+        raise Exception(f"Not all EoS are solved. ({len(mixs)}/{len(eps)})")
+    rmse = 0
+    for prop in include:
+        rmse += calc_rmse(get_prop(mixs, prop), get_prop(ems, prop)) * ws[prop]
+    return rmse
+
+
+def new_fit(eos, ems, include=["t", "p", "x", "y"], bounds=[-0.2, 0.2],
+            ws={"x": 1, "y": 1, "t": 1e-2, "p": 1e-5},
+            predict=Predict.PRESSURE):
+    """
+    Calculate one BIP for the given set of mixtures.
+    Parameters
+    ----------
+    eos : list of thermoeos.equations.Equation
+        EoS for the optimization.
+    ems : list of thermoeos.mixture.Mixture
+        Mixture whose parameters are obtained experimentally.
+    include : list of str, optional
+        Errors of which parameters include in the computation
+        of BIP. Any combination of t, p, x and y. All included
+        by default.
+    Returns
+    -------
+    k : float
+        Optimized BIP for the given set on mixtures.
+    rmse : dict
+        Root of mean square error for the given set of
+        experimental mixtures and calculated ones
+        using obtained BIP.
+        rmse = {
+            "x": float or None,
+            "y": float or None,
+            "t": float or None,
+            "p": float or None
+        }
+    """
+    k = optimize.fminbound(
+        optimization_function, *bounds,
+        args=(eos, ems, predict, include, ws)
+    )
+
+    eps = solve_mult(k, eos, predict)
+    mixs = [ep[0] for ep in eps if ep[1]]
+
+    rmse = {"x": None, "y": None, "t": None, "p": None}
+
+    for prop in include:
+        rmse[prop] = calc_rmse(get_prop(mixs, prop), get_prop(ems, prop))
+
+    return k, rmse
 
 
 def fit(eq, mix, const, exp, ws=None):
