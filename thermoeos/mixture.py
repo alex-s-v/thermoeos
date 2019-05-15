@@ -10,6 +10,7 @@ Provides
 from .equations import Phase
 import numpy as np
 from scipy.constants import R
+from copy import deepcopy
 
 
 class Mixture(object):
@@ -70,6 +71,19 @@ class Mixture(object):
         self.RTc = R * self.Tc
         self.RTc2 = self.RTc**2
         self.RTc25 = R**2 * self.Tc**2.5
+
+    @staticmethod
+    def from_thermo_mix(mix):
+        name = "-".join(mix.compoenent)
+        mmix = Mixture(
+            name, mix.zs[:-1],
+            mix.zs[:-1],
+            mix.Tbs,
+            mix.Tcs,
+            mix.Pcs,
+            mix.omegas
+        )
+        return mmix
 
     phi_vap = None
     vol_vap = None
