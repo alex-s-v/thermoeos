@@ -74,7 +74,7 @@ class Mixture(object):
 
     @staticmethod
     def from_thermo_mix(mix):
-        name = "-".join(mix.compoenent)
+        name = "-".join(mix.components)
         mmix = Mixture(
             name, mix.zs[:-1],
             mix.zs[:-1],
