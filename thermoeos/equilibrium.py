@@ -42,11 +42,11 @@ def initialise(f, init, step_size, max_steps):
         init += step_size
         ep, calculated = f(init)
         if calculated:
-            if np.abs(ep.s) > np.abs(s0):
-                step_size *= -1
+            if np.sign(s0-1) != np.sign(ep.s-1):
+                return sorted([init-step_size, init])
             else:
-                if np.sign(s0-1) != np.sign(ep.s-1):
-                    return sorted([init-step_size, init])
+                if np.abs(ep.s-1) > np.abs(s0-1):
+                    step_size *= -1
                 else:
                     s0 = ep.s
         else:
@@ -75,8 +75,8 @@ def find_equilibrium(eq, T, P, predict=Predict.PRESSURE):
         True if equilibrium point is found, False otherwise.
     """
     if predict == Predict.PRESSURE:
-        step = 1e4
-        max_steps = 100
+        step = 1e3
+        max_steps = 1000
         init = P
 
         def solve(val): return eq.solve(T, val)

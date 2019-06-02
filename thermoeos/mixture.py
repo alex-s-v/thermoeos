@@ -159,5 +159,5 @@ class Mixture(object):
         s = f"Mix: {self.name}\n"
         s += f"x: {self.x[0]}\n"
         s += f"y: {self.y[0]}\n"
-        s += f"s: {self.s}\n"
+        s += f"s: {self.s}"
         return s
